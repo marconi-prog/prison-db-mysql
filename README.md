@@ -66,19 +66,6 @@ CREATE TABLE detento (
     FOREIGN KEY (crime_id) REFERENCES crime(id),
     FOREIGN KEY (processo_id) REFERENCES processo(id)
 );
-
--- Registro de Ocorrências Disciplinares
-CREATE TABLE ocorrencia (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    detento_id INT NOT NULL,
-    funcionario_id INT NOT NULL,
-    descricao TEXT NOT NULL,
-    gravidade ENUM('leve', 'media', 'grave') DEFAULT 'leve',
-    data_ocorrencia DATETIME NOT NULL,
-
-    FOREIGN KEY (detento_id) REFERENCES detento(id),
-    FOREIGN KEY (funcionario_id) REFERENCES funcionario(id)
-);
 ```
 
 ## Guia de Instalação e Configuração
@@ -106,34 +93,70 @@ Conecte-se ao banco utilizando as credenciais definidas no Docker:
 *   **User:** `usuario`
 *   **Password:** `senha123`
 
-## Consultas Avançadas e Relatórios
+## Consultas e Resultados Esperados
 
-O sistema permite a extração de dados complexos para tomada de decisão:
+Abaixo estão os principais relatórios do sistema com seus respectivos resultados baseados nos dados de exemplo.
 
-### Relatório de Localização e Crime
-Exibe onde cada detento está e qual crime cometeu:
+### 1. Relatório de Localização e Regime (INNER JOIN)
+Cruza os dados do detento com sua respectiva cela e bloco.
+
 ```sql
-SELECT 
-    d.nome AS Detento,
-    c.numero AS Cela,
-    p.nome AS Pavilhao,
-    cr.nome AS Crime
+SELECT d.nome, d.regime, c.numero AS cela, c.bloco
 FROM detento d
-INNER JOIN cela c ON d.cela_id = c.id
-INNER JOIN pavilhao p ON c.pavilhao_id = p.id
-INNER JOIN crime cr ON d.crime_id = cr.id;
+INNER JOIN cela c ON d.cela_id = c.id;
 ```
 
-### Estatísticas de Ocupação
-Média de capacidade e total de detentos:
+**Resultado:**
+| nome | regime | cela | bloco |
+| :--- | :--- | :--- | :--- |
+| Joao Santos | fechado | A01 | A |
+| Lucas Lima | semiaberto | A02 | A |
+| Rafael Costa | fechado | B01 | B |
+| Felipe Alves | fechado | A01 | A |
+
+---
+
+### 2. Controle de Visitas por Detento (LEFT JOIN)
+Lista todos os detentos e a quantidade de visitas que cada um recebeu.
+
+```sql
+SELECT d.nome, d.regime, COUNT(v.id) AS total_visitas
+FROM detento d
+LEFT JOIN visita v ON v.detento_id = d.id
+GROUP BY d.id, d.nome, d.regime;
+```
+
+**Resultado:**
+| nome | regime | total_visitas |
+| :--- | :--- | :--- |
+| Joao Santos | fechado | 1 |
+| Lucas Lima | semiaberto | 1 |
+| Rafael Costa | fechado | 1 |
+| Andre Souza | aberto | 0 |
+| Felipe Alves | fechado | 0 |
+
+---
+
+### 3. Estatísticas Gerais (Agregações)
+Resumo quantitativo do sistema.
+
 ```sql
 SELECT 
-    COUNT(*) AS total_detentos,
-    (SELECT AVG(capacidade) FROM cela) AS media_capacidade_celas
-FROM detento;
+    (SELECT COUNT(*) FROM detento) AS total_detentos,
+    (SELECT COUNT(*) FROM funcionario) AS total_funcionarios,
+    (SELECT AVG(capacidade) FROM cela) AS media_capacidade_celas;
 ```
 
-### Histórico de Transferências Recentes
+**Resultado:**
+| total_detentos | total_funcionarios | media_capacidade_celas |
+| :--- | :--- | :--- |
+| 5 | 5 | 3.4000 |
+
+---
+
+### 4. Histórico de Transferências
+Rastreabilidade de movimentação interna.
+
 ```sql
 SELECT 
     t.data_transferencia,
@@ -144,24 +167,31 @@ SELECT
 FROM transferencia t
 JOIN detento d ON t.detento_id = d.id
 JOIN cela c1 ON t.cela_origem_id = c1.id
-JOIN cela c2 ON t.cela_destino_id = c2.id
-ORDER BY t.data_transferencia DESC;
+JOIN cela c2 ON t.cela_destino_id = c2.id;
 ```
+
+**Resultado:**
+| data_transferencia | detento | origem | destino | motivo |
+| :--- | :--- | :--- | :--- | :--- |
+| 2026-04-20 | Rafael Costa | B01 | B02 | Superlotacao |
+| 2026-04-25 | Lucas Lima | A02 | A01 | Seguranca |
 
 ## Manutenção de Dados (DML)
 
-### Atualização de Regime
+### Atualização de Status de Cela
 ```sql
-UPDATE detento SET regime = 'semiaberto' WHERE id = 1;
+UPDATE cela SET status = 'lotada' WHERE id = 1;
+-- Resultado: Query OK, 1 row affected
 ```
 
-### Remoção de Registros (Exemplo: Visita Cancelada)
+### Remoção de Registro
 ```sql
-DELETE FROM visita WHERE status = 'cancelada' AND data_visita < NOW();
+DELETE FROM visita WHERE id = 3;
+-- Resultado: Query OK, 1 row affected
 ```
 
 ## Tecnologias Utilizadas
-*   **MySQL 8.0:** Motor de banco de dados relacional.
-*   **Docker:** Containerização para ambiente de desenvolvimento e produção.
-*   **DBeaver:** Interface gráfica para administração SQL.
-*   **Markdown:** Documentação técnica estruturada.
+*   **MySQL 8.0**
+*   **Docker**
+*   **DBeaver**
+*   **Markdown**
